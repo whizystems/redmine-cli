@@ -170,6 +170,7 @@ rdm issue relation add --id 123 --to 125 --type precedes --delay 2
 rdm issue relation remove --relation-id 9
 rdm issue update --id 125 --parent 123
 rdm issue update --id 125 --parent none
+rdm issue update --id 125 --assigned-to none   # unassign
 rdm issue list --project backend --include-relations --format json
 ```
 

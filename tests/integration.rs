@@ -776,6 +776,39 @@ async fn test_issue_update_parent_clear() {
 }
 
 #[tokio::test]
+async fn test_issue_update_assignee_set() {
+    let server = start_mock_server().await;
+    mock_issue_update(
+        serde_json::json!({"assigned_to_id": 5}),
+        ResponseTemplate::new(204),
+    )
+    .mount(&server)
+    .await;
+
+    rdm(&server)
+        .args(["issue", "update", "--id", "123", "--assigned-to", "5"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Issue #123 has been updated"));
+}
+
+#[tokio::test]
+async fn test_issue_update_assignee_clear() {
+    let server = start_mock_server().await;
+    mock_issue_update(
+        serde_json::json!({"assigned_to_id": ""}),
+        ResponseTemplate::new(204),
+    )
+    .mount(&server)
+    .await;
+
+    rdm(&server)
+        .args(["issue", "update", "--id", "123", "--assigned-to", "none"])
+        .assert()
+        .success();
+}
+
+#[tokio::test]
 async fn test_issue_update_tracker() {
     let server = start_mock_server().await;
     mock_issue_update(
