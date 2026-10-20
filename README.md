@@ -177,6 +177,7 @@ rdm time create --issue 123 --hours 2.5 --activity Development --comment "Implem
 Relation types: `relates`, `duplicates`, `duplicated`, `blocks`, `blocked`, `precedes`, `follows`, `copied_to`, `copied_from`. `--delay` applies to `precedes`/`follows`.
 
 Set a parent with `rdm issue create --parent <id>` or `rdm issue update --id <id> --parent <id>`; clear it with `--parent none`.
+Unassign an issue with `rdm issue update --id <id> --assigned-to none`.
 
 ### Saved Queries
 

@@ -19,7 +19,7 @@ pub use attachment::{
 #[allow(unused_imports)]
 pub use custom_field::{CustomField, CustomFieldValue};
 pub use issue::{
-    Issue, IssueList, IssueResponse, NewIssue, NewIssueRequest, ParentIssue, UpdateIssue,
+    ClearableId, Issue, IssueList, IssueResponse, NewIssue, NewIssueRequest, UpdateIssue,
     UpdateIssueRequest,
 };
 // Re-export for internal use by client/endpoints.rs

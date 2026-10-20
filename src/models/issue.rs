@@ -171,12 +171,13 @@ pub struct UpdateIssue {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub priority_id: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub assigned_to_id: Option<u32>,
+    /// Set or clear the assignee.
+    pub assigned_to_id: Option<ClearableId>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fixed_version_id: Option<u32>,
     /// Set or clear the parent issue.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub parent_issue_id: Option<ParentIssue>,
+    pub parent_issue_id: Option<ClearableId>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start_date: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -195,16 +196,16 @@ pub struct UpdateIssue {
     pub uploads: Option<Vec<AttachmentRef>>,
 }
 
-/// Parent issue change for an update.
+/// ID field change for an update: set to an ID, or clear it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ParentIssue {
-    /// Set the parent to this issue ID.
+pub enum ClearableId {
+    /// Set the field to this ID.
     Set(u32),
-    /// Remove the parent. Redmine clears it on a blank `parent_issue_id`.
+    /// Clear the field. Redmine clears ID fields on a blank value.
     Clear,
 }
 
-impl ParentIssue {
+impl ClearableId {
     /// Parse `<ID>`, `#<ID>`, or `none` (clear).
     pub fn parse(value: &str) -> std::result::Result<Self, String> {
         let v = value.trim();
@@ -214,11 +215,11 @@ impl ParentIssue {
         v.trim_start_matches('#')
             .parse::<u32>()
             .map(Self::Set)
-            .map_err(|_| format!("invalid parent '{}': expected an issue ID or 'none'", value))
+            .map_err(|_| format!("invalid value '{}': expected an ID or 'none'", value))
     }
 }
 
-impl Serialize for ParentIssue {
+impl Serialize for ClearableId {
     fn serialize<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -478,20 +479,20 @@ pub struct SearchResults {
 
 #[cfg(test)]
 mod tests {
-    use super::{truncate, ParentIssue, UpdateIssue};
+    use super::{truncate, ClearableId, UpdateIssue};
 
     #[test]
-    fn parent_parse() {
-        assert_eq!(ParentIssue::parse("42"), Ok(ParentIssue::Set(42)));
-        assert_eq!(ParentIssue::parse("#42"), Ok(ParentIssue::Set(42)));
-        assert_eq!(ParentIssue::parse("none"), Ok(ParentIssue::Clear));
-        assert!(ParentIssue::parse("abc").is_err());
+    fn clearable_id_parse() {
+        assert_eq!(ClearableId::parse("42"), Ok(ClearableId::Set(42)));
+        assert_eq!(ClearableId::parse("#42"), Ok(ClearableId::Set(42)));
+        assert_eq!(ClearableId::parse("none"), Ok(ClearableId::Clear));
+        assert!(ClearableId::parse("abc").is_err());
     }
 
     #[test]
     fn parent_serializes_id_or_blank() {
         let set = UpdateIssue {
-            parent_issue_id: Some(ParentIssue::Set(7)),
+            parent_issue_id: Some(ClearableId::Set(7)),
             ..Default::default()
         };
         assert_eq!(
@@ -499,12 +500,32 @@ mod tests {
             serde_json::json!({"parent_issue_id": 7})
         );
         let clear = UpdateIssue {
-            parent_issue_id: Some(ParentIssue::Clear),
+            parent_issue_id: Some(ClearableId::Clear),
             ..Default::default()
         };
         assert_eq!(
             serde_json::to_value(clear).unwrap(),
             serde_json::json!({"parent_issue_id": ""})
+        );
+    }
+
+    #[test]
+    fn assignee_serializes_id_or_blank() {
+        let set = UpdateIssue {
+            assigned_to_id: Some(ClearableId::Set(5)),
+            ..Default::default()
+        };
+        assert_eq!(
+            serde_json::to_value(set).unwrap(),
+            serde_json::json!({"assigned_to_id": 5})
+        );
+        let clear = UpdateIssue {
+            assigned_to_id: Some(ClearableId::Clear),
+            ..Default::default()
+        };
+        assert_eq!(
+            serde_json::to_value(clear).unwrap(),
+            serde_json::json!({"assigned_to_id": ""})
         );
     }
 

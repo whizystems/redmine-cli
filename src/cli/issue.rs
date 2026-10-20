@@ -10,9 +10,8 @@ use crate::client::{endpoints::IssueFilters, RedmineClient};
 use crate::error::{AppError, Result};
 use crate::models::{
     attachment::{guess_content_type, AttachmentRef},
-    AttachmentDownloaded, AttachmentList, AttachmentUploaded, CustomFieldValue, Issue, IssueList,
-    NewIssue, NewRelation, ParentIssue, RelationCreated, RelationDeleted, RelationList,
-    UpdateIssue,
+    AttachmentDownloaded, AttachmentList, AttachmentUploaded, ClearableId, CustomFieldValue, Issue,
+    IssueList, NewIssue, NewRelation, RelationCreated, RelationDeleted, RelationList, UpdateIssue,
 };
 use crate::output::{markdown::markdown_kv_table, MarkdownOutput, Meta};
 
@@ -262,15 +261,15 @@ pub struct IssueUpdateArgs {
     /// New priority ID.
     #[arg(long)]
     pub priority: Option<u32>,
-    /// New assignee ID.
-    #[arg(long)]
-    pub assigned_to: Option<u32>,
+    /// New assignee ID, or `none` to unassign.
+    #[arg(long, value_name = "ID|none", value_parser = ClearableId::parse)]
+    pub assigned_to: Option<ClearableId>,
     /// New target version (ID or name within the issue's project).
     #[arg(long, value_name = "ID|NAME")]
     pub version: Option<String>,
     /// New parent issue ID, or `none` to remove the parent.
-    #[arg(long, value_name = "ID|none", value_parser = ParentIssue::parse)]
-    pub parent: Option<ParentIssue>,
+    #[arg(long, value_name = "ID|none", value_parser = ClearableId::parse)]
+    pub parent: Option<ClearableId>,
     /// Done percentage (0-100).
     #[arg(long)]
     pub done_ratio: Option<u32>,
