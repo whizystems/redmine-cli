@@ -80,6 +80,14 @@ async fn handle_message(
     url: Option<&str>,
     api_key: Option<&str>,
 ) -> Option<Value> {
+    if !msg.is_object() || msg.get("jsonrpc").and_then(Value::as_str) != Some("2.0") {
+        let id = msg.get("id").cloned().unwrap_or(Value::Null);
+        return Some(error_response(
+            id,
+            -32600,
+            "Invalid Request: expected a JSON-RPC 2.0 object",
+        ));
+    }
     let method = msg.get("method").and_then(Value::as_str).unwrap_or("");
     // Notifications (no id) never get a response.
     let id = msg.get("id")?.clone();
@@ -146,10 +154,11 @@ async fn call_tool(
         .find(|t| t.name == name)
         .ok_or_else(|| (-32602, format!("Unknown tool: {name}")))?;
     let empty = Map::new();
-    let args = params
-        .get("arguments")
-        .and_then(Value::as_object)
-        .unwrap_or(&empty);
+    let args = match params.get("arguments") {
+        None | Some(Value::Null) => &empty,
+        Some(Value::Object(map)) => map,
+        Some(_) => return Err((-32602, "`arguments` must be an object".to_string())),
+    };
 
     let (text, is_error) = match build_argv(tool, args) {
         Ok((argv, format)) => run_tool(argv, format, url, api_key).await,
@@ -223,9 +232,9 @@ fn build_argv(
                 }
             }
             Value::Array(items) => {
+                // `--flag=value` so values starting with '-' aren't read as flags.
                 for item in items {
-                    argv.push(flag.clone());
-                    argv.push(scalar_to_string(item)?);
+                    argv.push(format!("{flag}={}", scalar_to_string(item)?));
                 }
             }
             other => {
@@ -436,6 +445,96 @@ mod tests {
         let args = json!({ "id": 1, "to": 2, "type": "precedes", "delay": -3 });
         let (argv, _) = build_argv(t, args.as_object().unwrap()).unwrap();
         Cli::try_parse_from(&argv).expect("negative value parses");
+    }
+
+    async fn handle(msg: Value) -> Option<Value> {
+        let tools = collect_tools();
+        handle_message(&msg, &tools, None, None).await
+    }
+
+    #[tokio::test]
+    async fn jsonrpc_initialize_and_list() {
+        let resp = handle(json!({
+            "jsonrpc": "2.0", "id": 1, "method": "initialize",
+            "params": { "protocolVersion": "2025-03-26" }
+        }))
+        .await
+        .unwrap();
+        assert_eq!(resp["id"], 1);
+        assert_eq!(resp["result"]["protocolVersion"], "2025-03-26");
+        assert!(resp["result"]["capabilities"]["tools"].is_object());
+
+        let resp = handle(json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list" }))
+            .await
+            .unwrap();
+        let tools = resp["result"]["tools"].as_array().unwrap();
+        assert!(tools.iter().any(|t| t["name"] == "issue_list"));
+    }
+
+    #[tokio::test]
+    async fn jsonrpc_notification_gets_no_response() {
+        let msg = json!({ "jsonrpc": "2.0", "method": "notifications/initialized" });
+        assert!(handle(msg).await.is_none());
+    }
+
+    #[tokio::test]
+    async fn jsonrpc_invalid_envelope_rejected() {
+        for msg in [
+            json!({ "id": 1, "method": "ping" }),
+            json!({ "jsonrpc": "1.0", "id": 1, "method": "ping" }),
+            json!([1, 2]),
+        ] {
+            let resp = handle(msg).await.unwrap();
+            assert_eq!(resp["error"]["code"], -32600);
+        }
+    }
+
+    #[tokio::test]
+    async fn jsonrpc_unknown_method_and_tool() {
+        let resp = handle(json!({ "jsonrpc": "2.0", "id": 1, "method": "nope" }))
+            .await
+            .unwrap();
+        assert_eq!(resp["error"]["code"], -32601);
+
+        let resp = handle(json!({
+            "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+            "params": { "name": "nope" }
+        }))
+        .await
+        .unwrap();
+        assert_eq!(resp["error"]["code"], -32602);
+    }
+
+    #[tokio::test]
+    async fn jsonrpc_non_object_arguments_rejected() {
+        let resp = handle(json!({
+            "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+            "params": { "name": "ping", "arguments": 42 }
+        }))
+        .await
+        .unwrap();
+        assert_eq!(resp["error"]["code"], -32602);
+    }
+
+    #[tokio::test]
+    async fn jsonrpc_tool_validation_error_is_tool_error() {
+        let resp = handle(json!({
+            "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+            "params": { "name": "issue_get", "arguments": {} }
+        }))
+        .await
+        .unwrap();
+        assert_eq!(resp["result"]["isError"], true);
+    }
+
+    #[test]
+    fn repeated_values_starting_with_dash_parse() {
+        let tools = collect_tools();
+        let t = tool(&tools, "issue_list");
+        let args = json!({ "cf": ["5=-1", "-6"] });
+        let (argv, _) = build_argv(t, args.as_object().unwrap()).unwrap();
+        assert!(argv.contains(&"--cf=-6".to_string()));
+        Cli::try_parse_from(&argv).expect("dash-prefixed repeated value parses");
     }
 
     #[test]
