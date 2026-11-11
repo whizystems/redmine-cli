@@ -107,4 +107,11 @@ pub enum Command {
     /// Version (target version / milestone) commands.
     #[command(subcommand)]
     Version(version::VersionCommand),
+
+    /// Run as an MCP (Model Context Protocol) server over stdio.
+    ///
+    /// Exposes rdm commands as tools for MCP clients (Claude Desktop/Cowork,
+    /// Claude Code, ...). Credentials come from --url/--api-key, env, or the
+    /// active profile, same as the CLI.
+    Mcp,
 }

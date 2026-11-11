@@ -5,6 +5,7 @@ mod cli;
 mod client;
 mod config;
 mod error;
+mod mcp;
 mod models;
 mod output;
 
@@ -43,6 +44,13 @@ async fn main() -> ExitCode {
 async fn run(cli: Cli) -> Result<ExitCode, AppError> {
     let paths = ConfigPaths::new()?;
     let format = cli.format;
+
+    if let Command::Mcp = &cli.command {
+        mcp::serve(cli.url.clone(), cli.api_key.clone())
+            .await
+            .map_err(|e| AppError::network(format!("MCP server I/O error: {e}")))?;
+        return Ok(ExitCode::SUCCESS);
+    }
 
     // Handle commands that don't need config first
     if let Command::Profile(cmd) = &cli.command {
@@ -114,7 +122,7 @@ async fn handle_profile_command(
     }
 }
 
-async fn execute_command(
+pub(crate) async fn execute_command(
     command: &Command,
     client: &client::RedmineClient,
     paths: &ConfigPaths,
@@ -131,7 +139,7 @@ async fn execute_command(
             Ok(format.format_success(user, Meta::default()))
         }
 
-        Command::Profile(_) | Command::Config(_) => {
+        Command::Profile(_) | Command::Config(_) | Command::Mcp => {
             // Already handled
             unreachable!()
         }

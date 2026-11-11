@@ -78,6 +78,39 @@ npx skills add https://github.com/whizystems/redmine-cli/ --skill redmine-cli-wo
 
 The skill helps agents choose the right `rdm` commands for common Redmine workflows such as connectivity checks, issue lookup and updates, time logging, reporting, and custom-field handling.
 
+## MCP Server
+
+`rdm mcp` runs an [MCP](https://modelcontextprotocol.io) server over stdio, so MCP clients without a shell (Claude Desktop / Cowork) can use Redmine too. Every command is exposed as a tool (`issue_list`, `issue_update`, `time_create`, `issue_relation_add`, ...) with the same flags as the CLI. Profile/config management is not exposed. Each tool accepts an optional `format` (`markdown` default, or `json`).
+
+Credentials resolve exactly like the CLI: `--url`/`--api-key`, `REDMINE_URL`/`REDMINE_API_KEY`, or the active profile (`rdm profile add ...`).
+
+### Claude Desktop / Cowork
+
+Add to `claude_desktop_config.json` (Settings → Developer → Edit Config), then restart Claude:
+
+```json
+{
+  "mcpServers": {
+    "redmine": {
+      "command": "rdm",
+      "args": ["mcp"],
+      "env": {
+        "REDMINE_URL": "https://redmine.example.com",
+        "REDMINE_API_KEY": "your-api-key"
+      }
+    }
+  }
+}
+```
+
+Omit `env` to use the active `rdm` profile. If `rdm` isn't found, use the full path (e.g. `C:\\Users\\<you>\\scoop\\shims\\rdm.exe` or `/opt/homebrew/bin/rdm`).
+
+### Claude Code
+
+```bash
+claude mcp add redmine -- rdm mcp
+```
+
 ## Quick Start
 
 ### 1. Set up credentials
