@@ -15,8 +15,17 @@ use crate::cli::Cli;
 use crate::config::{load_config, ConfigPaths};
 use crate::output::{Format, OutputFormat};
 
-/// MCP protocol version implemented by this server.
-const PROTOCOL_VERSION: &str = "2025-06-18";
+/// MCP protocol versions supported by this server, newest first.
+/// The server only uses features (tools, ping) common to all of them.
+const SUPPORTED_PROTOCOL_VERSIONS: &[&str] = &["2025-06-18", "2025-03-26", "2024-11-05"];
+
+/// Echo the client's version if supported, otherwise offer our latest.
+fn negotiate_version(requested: Option<&str>) -> &'static str {
+    requested
+        .and_then(|r| SUPPORTED_PROTOCOL_VERSIONS.iter().find(|v| **v == r))
+        .copied()
+        .unwrap_or(SUPPORTED_PROTOCOL_VERSIONS[0])
+}
 
 /// Top-level commands not exposed as tools (local config/credential management).
 const EXCLUDED_COMMANDS: &[&str] = &["profile", "config", "mcp", "help"];
@@ -78,12 +87,10 @@ async fn handle_message(
 
     let result = match method {
         "initialize" => {
-            let requested = params
-                .get("protocolVersion")
-                .and_then(Value::as_str)
-                .unwrap_or(PROTOCOL_VERSION);
+            let negotiated =
+                negotiate_version(params.get("protocolVersion").and_then(Value::as_str));
             Ok(json!({
-                "protocolVersion": requested,
+                "protocolVersion": negotiated,
                 "capabilities": { "tools": { "listChanged": false } },
                 "serverInfo": {
                     "name": "rdm",
@@ -191,10 +198,15 @@ fn build_argv(
 
     for (key, value) in args {
         if key == "format" {
-            format = match value.as_str() {
-                Some("json") => OutputFormat::Json,
-                Some("markdown") | None => OutputFormat::Markdown,
-                Some(other) => return Err(format!("Invalid format: {other}")),
+            format = match value {
+                Value::Null => OutputFormat::Markdown,
+                Value::String(s) if s == "markdown" => OutputFormat::Markdown,
+                Value::String(s) if s == "json" => OutputFormat::Json,
+                other => {
+                    return Err(format!(
+                        "Invalid format: {other} (expected \"markdown\" or \"json\")"
+                    ))
+                }
             };
             continue;
         }
@@ -294,7 +306,8 @@ fn walk(cmd: &clap::Command, path: Vec<String>, tools: &mut Vec<Tool>) {
 
     let name = path.join("_");
     let leaf = path.last().map(String::as_str).unwrap_or("");
-    let read_only = matches!(leaf, "list" | "get" | "me" | "ping" | "download");
+    // `download` writes to the local filesystem, so it is not read-only.
+    let read_only = matches!(leaf, "list" | "get" | "me" | "ping");
     let about = cmd.get_about().map(|a| a.to_string()).unwrap_or_default();
     tools.push(Tool {
         description: format!("{about} (`rdm {}`)", path.join(" ")),
@@ -423,6 +436,35 @@ mod tests {
         let args = json!({ "id": 1, "to": 2, "type": "precedes", "delay": -3 });
         let (argv, _) = build_argv(t, args.as_object().unwrap()).unwrap();
         Cli::try_parse_from(&argv).expect("negative value parses");
+    }
+
+    #[test]
+    fn protocol_version_negotiation() {
+        assert_eq!(negotiate_version(Some("2024-11-05")), "2024-11-05");
+        assert_eq!(
+            negotiate_version(Some("2099-01-01")),
+            SUPPORTED_PROTOCOL_VERSIONS[0]
+        );
+        assert_eq!(negotiate_version(None), SUPPORTED_PROTOCOL_VERSIONS[0]);
+    }
+
+    #[test]
+    fn invalid_format_rejected() {
+        let tools = collect_tools();
+        let t = tool(&tools, "ping");
+        for bad in [json!(1), json!(true), json!(["json"]), json!("xml")] {
+            let args = json!({ "format": bad });
+            assert!(build_argv(t, args.as_object().unwrap()).is_err());
+        }
+        let args = json!({ "format": null });
+        assert!(build_argv(t, args.as_object().unwrap()).is_ok());
+    }
+
+    #[test]
+    fn download_is_not_read_only() {
+        let tools = collect_tools();
+        assert!(!tool(&tools, "issue_attachment_download").read_only);
+        assert!(tool(&tools, "issue_list").read_only);
     }
 
     #[test]
