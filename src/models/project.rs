@@ -1,5 +1,6 @@
 //! Project model.
 
+use super::custom_field::CustomField;
 use crate::output::{
     markdown::{markdown_kv_table, markdown_table, pagination_hint},
     MarkdownOutput, Meta,
@@ -31,6 +32,9 @@ pub struct Project {
     pub created_on: Option<String>,
     #[serde(default)]
     pub updated_on: Option<String>,
+    /// Project custom fields (omitted from output when Redmine returns none).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_fields: Option<Vec<CustomField>>,
 }
 
 /// List of projects from API.
@@ -96,6 +100,18 @@ impl MarkdownOutput for Project {
 
         let pairs_ref: Vec<(&str, String)> = pairs.iter().map(|(k, v)| (*k, v.clone())).collect();
         output.push_str(&markdown_kv_table(&pairs_ref));
+
+        if let Some(custom_fields) = &self.custom_fields {
+            if !custom_fields.is_empty() {
+                output.push_str("\n### Custom Fields\n\n");
+                let headers = &["ID", "Name", "Value"];
+                let rows: Vec<Vec<String>> = custom_fields
+                    .iter()
+                    .map(|cf| vec![cf.id.to_string(), cf.name.clone(), cf.display_value()])
+                    .collect();
+                output.push_str(&markdown_table(headers, rows));
+            }
+        }
 
         if let Some(desc) = &self.description {
             if !desc.is_empty() {

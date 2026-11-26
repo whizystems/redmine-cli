@@ -114,6 +114,7 @@ rdm ping
 rdm project list
 rdm project get --id 1
 rdm project get --identifier backend
+rdm project list --cf 7=1 -f json   # filter by a project custom field
 
 rdm user list --status active
 rdm user me
@@ -238,6 +239,9 @@ Use repeatable `--cf <id>=<value>` arguments for:
 - issue create
 - issue update
 - time grouping by `cf_<id>`
+- project filtering (`project list --cf`)
+
+`project get` returns project custom fields (`custom_fields: [{id, name, value}]`), so read project metadata such as billability from there instead of calling the REST API directly.
 
 Examples:
 

@@ -2,6 +2,7 @@
 
 use clap::{Args, Subcommand};
 
+use super::parse_custom_fields;
 use crate::client::RedmineClient;
 use crate::error::Result;
 use crate::models::{Project, ProjectList};
@@ -16,6 +17,10 @@ pub enum ProjectCommand {
 
 #[derive(Debug, Args)]
 pub struct ProjectListArgs {
+    /// Filter by project custom field value (format: id=value, repeatable).
+    /// The field must be enabled as a filter in Redmine (Redmine 4.1+).
+    #[arg(long = "cf", value_name = "ID=VALUE")]
+    pub custom_fields: Vec<String>,
     /// Maximum number of results.
     #[arg(long, default_value = "25")]
     pub limit: u32,
@@ -36,7 +41,10 @@ pub struct ProjectGetArgs {
 
 /// Execute project list command.
 pub async fn list(client: &RedmineClient, args: &ProjectListArgs) -> Result<ProjectList> {
-    client.list_projects(args.limit, args.offset).await
+    let custom_fields = parse_custom_fields(&args.custom_fields)?;
+    client
+        .list_projects(args.limit, args.offset, &custom_fields)
+        .await
 }
 
 /// Execute project get command.

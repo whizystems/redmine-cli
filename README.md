@@ -178,6 +178,11 @@ rdm time create --issue 123 --hours 2.5 --activity Development --comment "Implem
 | `rdm project list` | List projects |
 | `rdm project get` | Get project details |
 
+`rdm project get` shows the project's custom fields (a `### Custom Fields` table in markdown, `custom_fields: [{id, name, value}]` in JSON; omitted when the project has none). `rdm project list -f json` carries `custom_fields` per project too.
+
+**Project list filters:**
+- `--cf <id>=<value>` - Filter by project custom field (repeatable; the field must be marked "Used as a filter", Redmine 4.1+)
+
 ### Issues
 
 | Command | Description |

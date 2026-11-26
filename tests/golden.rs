@@ -266,6 +266,119 @@ async fn golden_project_get_markdown_shows_parent() {
     );
 }
 
+#[tokio::test]
+async fn golden_project_get_json_includes_custom_fields() {
+    let server = start_mock_server().await;
+    mock_project_get_with_custom_fields().mount(&server).await;
+
+    let mut cmd = get_binary();
+    cmd.env("APPDATA", std::env::temp_dir())
+        .env("LOCALAPPDATA", std::env::temp_dir())
+        .args(["--url", &server.uri(), "--api-key", "test-api-key"])
+        .args(["--format", "json"])
+        .args(["project", "get", "--id", "1"]);
+
+    let (success, json) = run_json_command(&mut cmd);
+    assert!(success);
+    let cfs = json["data"]["custom_fields"]
+        .as_array()
+        .expect("data.custom_fields should be an array");
+    assert_eq!(cfs.len(), 2);
+    assert_eq!(cfs[0]["id"], 7);
+    assert_eq!(cfs[0]["name"], "Billable");
+    assert_eq!(cfs[0]["value"], "1");
+    assert_eq!(cfs[1]["value"], "120");
+}
+
+#[tokio::test]
+async fn golden_project_get_json_omits_custom_fields_when_absent() {
+    let server = start_mock_server().await;
+    mock_project_get().mount(&server).await;
+
+    let mut cmd = get_binary();
+    cmd.env("APPDATA", std::env::temp_dir())
+        .env("LOCALAPPDATA", std::env::temp_dir())
+        .args(["--url", &server.uri(), "--api-key", "test-api-key"])
+        .args(["--format", "json"])
+        .args(["project", "get", "--id", "1"]);
+
+    let (success, json) = run_json_command(&mut cmd);
+    assert!(success);
+    assert!(
+        json["data"].get("custom_fields").is_none(),
+        "custom_fields should be omitted when the project has none"
+    );
+}
+
+#[tokio::test]
+async fn golden_project_get_markdown_shows_custom_fields() {
+    let server = start_mock_server().await;
+    mock_project_get_with_custom_fields().mount(&server).await;
+
+    let mut cmd = get_binary();
+    cmd.env("APPDATA", std::env::temp_dir())
+        .env("LOCALAPPDATA", std::env::temp_dir())
+        .args(["--url", &server.uri(), "--api-key", "test-api-key"])
+        .args(["project", "get", "--id", "1"]);
+
+    let output = cmd.output().expect("command should run");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("### Custom Fields"),
+        "markdown should have a Custom Fields section, got:\n{stdout}"
+    );
+    assert!(stdout.contains("| 7 | Billable | 1 |"), "got:\n{stdout}");
+    assert!(stdout.contains("| 8 | Estimate | 120 |"), "got:\n{stdout}");
+}
+
+#[tokio::test]
+async fn golden_project_get_markdown_no_custom_fields_section_when_absent() {
+    let server = start_mock_server().await;
+    mock_project_get().mount(&server).await;
+
+    let mut cmd = get_binary();
+    cmd.env("APPDATA", std::env::temp_dir())
+        .env("LOCALAPPDATA", std::env::temp_dir())
+        .args(["--url", &server.uri(), "--api-key", "test-api-key"])
+        .args(["project", "get", "--id", "1"]);
+
+    let output = cmd.output().expect("command should run");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(!stdout.contains("Custom Fields"), "got:\n{stdout}");
+}
+
+#[tokio::test]
+async fn golden_project_list_cf_filter_and_json_custom_fields() {
+    let server = start_mock_server().await;
+    mock_projects_list_cf_filter().mount(&server).await;
+
+    let mut cmd = get_binary();
+    cmd.env("APPDATA", std::env::temp_dir())
+        .env("LOCALAPPDATA", std::env::temp_dir())
+        .args(["--url", &server.uri(), "--api-key", "test-api-key"])
+        .args(["--format", "json"])
+        .args(["project", "list", "--cf", "7=1"]);
+
+    // The mock only matches when `cf_7=1` is sent, so success proves the filter.
+    let (success, json) = run_json_command(&mut cmd);
+    assert!(success, "got: {json}");
+    let project = &json["data"]["projects"][0];
+    assert_eq!(project["identifier"], "billable");
+    assert_eq!(project["custom_fields"][0]["name"], "Billable");
+}
+
+#[tokio::test]
+async fn golden_project_list_rejects_malformed_cf() {
+    let mut cmd = get_binary();
+    cmd.env("APPDATA", std::env::temp_dir())
+        .env("LOCALAPPDATA", std::env::temp_dir())
+        .args(["--url", "http://127.0.0.1:9", "--api-key", "test-api-key"])
+        .args(["project", "list", "--cf", "billable"]);
+
+    let output = cmd.output().expect("command should run");
+    assert!(!output.status.success());
+}
+
 // ============================================================================
 // Golden Tests: `rdm issue list --format json`
 // ============================================================================
