@@ -278,7 +278,7 @@ Prefer:
 - `rdm time activities list` before `rdm time create` if activity naming is uncertain
 - `rdm me` or `rdm user me` before using `me` in filters or assignments
 
-Use `--dry-run` to preview write requests (create, update, delete, relation add/remove). It sends nothing and exits `0`: markdown prints `DRY RUN: <METHOD> <path> (no request sent)` and the body; JSON returns `{"ok": true, "data": {"dry_run": true, "method", "path", "body"}}`. Read-only `get` commands and attachment commands refuse `--dry-run` with a validation error (exit `2`). `--dry-run` is not available in MCP mode.
+Use `--dry-run` to preview write requests (create, update, delete, relation add/remove). It sends nothing and exits `0`: markdown prints `DRY RUN: <METHOD> <path> (no request sent)` and the body; JSON returns a success envelope whose `data` has the fields `dry_run` (always `true`), `method`, `path` and `body` (omitted for DELETE), e.g. `{"ok": true, "data": {"dry_run": true, "method": "PUT", "path": "/issues/123.json", "body": {"issue": {"notes": "x"}}}}`. Read-only `get` commands and attachment commands refuse `--dry-run` with a validation error (exit `2`). `--dry-run` is not available in MCP mode.
 
 ## Error Handling
 
