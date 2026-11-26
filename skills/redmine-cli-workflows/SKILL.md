@@ -278,7 +278,7 @@ Prefer:
 - `rdm time activities list` before `rdm time create` if activity naming is uncertain
 - `rdm me` or `rdm user me` before using `me` in filters or assignments
 
-Use `--dry-run` only for previewing write requests. In the current CLI, dry-run prints the request and exits with a validation error instead of success, so do not treat it as a successful no-op in scripts or agent loops.
+Use `--dry-run` to preview write requests (create, update, delete, relation add/remove). It sends nothing and exits `0`: markdown prints `DRY RUN: <METHOD> <path> (no request sent)` and the body; JSON returns `{"ok": true, "data": {"dry_run": true, "method", "path", "body"}}`. Read-only `get` commands and attachment commands refuse `--dry-run` with a validation error (exit `2`). `--dry-run` is not available in MCP mode.
 
 ## Error Handling
 
@@ -296,5 +296,5 @@ Stable exit codes:
 - guessing project IDs, user IDs, status IDs, tracker IDs, priority IDs, activity IDs, or custom-field IDs
 - using markdown output when exact downstream parsing is required
 - assuming `--search` combines with all issue-list filters
-- assuming `--dry-run` exits successfully
+- treating a `--dry-run` success as a performed write (check `data.dry_run` in JSON)
 - running a project-scoped saved query without `--project` (returns 404)

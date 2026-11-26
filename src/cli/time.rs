@@ -168,9 +168,12 @@ async fn get_activities(
     // Fetch from server
     let activities = client.list_activities().await?;
 
-    // Update cache
-    let cache = ActivityCache::new(activities.time_entry_activities.clone());
-    let _ = cache.save(&cache_file);
+    // Update cache. Never cache an empty list: `--dry-run` returns one without
+    // contacting Redmine, and caching it would break later real writes.
+    if !activities.time_entry_activities.is_empty() {
+        let cache = ActivityCache::new(activities.time_entry_activities.clone());
+        let _ = cache.save(&cache_file);
+    }
 
     Ok((activities, false))
 }

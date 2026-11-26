@@ -515,11 +515,13 @@ echo "Issue status: $STATUS"
 
 ### Dry run mode
 
-Preview what would be sent without executing:
+Preview a write request without sending it:
 
 ```bash
 rdm issue create --project 1 --subject "Test" --dry-run
 ```
+
+A completed dry run exits `0`. Markdown prints `DRY RUN: POST /issues.json (no request sent)` followed by the request body; `--format json` returns a success envelope with `data: {"dry_run": true, "method", "path", "body"}` (`body` omitted for DELETE). `get` and attachment commands refuse `--dry-run` with a validation error (exit `2`).
 
 ### Debug mode
 

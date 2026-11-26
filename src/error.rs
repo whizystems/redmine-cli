@@ -3,6 +3,8 @@
 use std::process::ExitCode;
 use thiserror::Error;
 
+use crate::output::DryRunPreview;
+
 /// Application-specific exit codes following the spec.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppExitCode {
@@ -73,6 +75,12 @@ pub enum AppError {
 
     #[error("TOML error: {0}")]
     Toml(#[from] toml::de::Error),
+
+    /// Not a failure: `--dry-run` built a write request and stopped before
+    /// sending it. Carried on the error path so the command short-circuits;
+    /// `main` prints it as a successful result and exits 0.
+    #[error("Dry run: {} {} (no request sent)", .0.method, .0.path)]
+    DryRun(Box<DryRunPreview>),
 }
 
 impl AppError {
@@ -88,6 +96,7 @@ impl AppError {
             AppError::Io(_) => AppExitCode::ApiError,
             AppError::Json(_) => AppExitCode::ApiError,
             AppError::Toml(_) => AppExitCode::Auth,
+            AppError::DryRun(_) => AppExitCode::Success,
         }
     }
 
@@ -103,6 +112,7 @@ impl AppError {
             AppError::Io(_) => "IO_ERROR",
             AppError::Json(_) => "JSON_ERROR",
             AppError::Toml(_) => "CONFIG_ERROR",
+            AppError::DryRun(_) => "DRY_RUN",
         }
     }
 
@@ -117,6 +127,11 @@ impl AppError {
             AppError::Network { hint, .. } => hint.as_deref(),
             _ => None,
         }
+    }
+
+    /// Create a dry-run outcome for a write request that was not sent.
+    pub fn dry_run(method: &str, path: impl Into<String>, body: Option<serde_json::Value>) -> Self {
+        AppError::DryRun(Box::new(DryRunPreview::new(method, path, body)))
     }
 
     /// Create a validation error.
@@ -286,6 +301,18 @@ mod tests {
 
         let err_no_hint = AppError::validation("message");
         assert_eq!(err_no_hint.hint(), None);
+    }
+
+    #[test]
+    fn test_dry_run_is_success() {
+        let err = AppError::dry_run("DELETE", "/relations/1.json", None);
+        assert_eq!(err.exit_code(), AppExitCode::Success);
+        assert_eq!(err.exit_code() as u8, 0);
+        assert_eq!(err.code(), "DRY_RUN");
+        assert_eq!(
+            err.to_string(),
+            "Dry run: DELETE /relations/1.json (no request sent)"
+        );
     }
 
     #[test]

@@ -437,11 +437,8 @@ impl RedmineClient {
     /// Create a new issue.
     pub async fn create_issue(&self, issue: NewIssue) -> Result<Issue> {
         if self.dry_run {
-            let body = serde_json::to_string_pretty(&NewIssueRequest { issue })
-                .map_err(|e| AppError::validation(format!("Failed to serialize: {}", e)))?;
-            println!("DRY RUN: POST /issues.json");
-            println!("{}", body);
-            return Err(AppError::validation("Dry run - no request sent"));
+            let body = serde_json::to_value(&NewIssueRequest { issue })?;
+            return Err(AppError::dry_run("POST", "/issues.json", Some(body)));
         }
 
         let request = self
@@ -455,11 +452,12 @@ impl RedmineClient {
     /// Update an issue.
     pub async fn update_issue(&self, id: u32, update: UpdateIssue) -> Result<()> {
         if self.dry_run {
-            let body = serde_json::to_string_pretty(&UpdateIssueRequest { issue: update })
-                .map_err(|e| AppError::validation(format!("Failed to serialize: {}", e)))?;
-            println!("DRY RUN: PUT /issues/{}.json", id);
-            println!("{}", body);
-            return Err(AppError::validation("Dry run - no request sent"));
+            let body = serde_json::to_value(&UpdateIssueRequest { issue: update })?;
+            return Err(AppError::dry_run(
+                "PUT",
+                format!("/issues/{}.json", id),
+                Some(body),
+            ));
         }
 
         let tracker_id = update.tracker_id;
@@ -609,11 +607,12 @@ impl RedmineClient {
     pub async fn create_relation(&self, issue_id: u32, relation: NewRelation) -> Result<Relation> {
         let body = NewRelationRequest { relation };
         if self.dry_run {
-            let json = serde_json::to_string_pretty(&body)
-                .map_err(|e| AppError::validation(format!("Failed to serialize: {}", e)))?;
-            println!("DRY RUN: POST /issues/{}/relations.json", issue_id);
-            println!("{}", json);
-            return Err(AppError::validation("Dry run - no request sent"));
+            let body = serde_json::to_value(&body)?;
+            return Err(AppError::dry_run(
+                "POST",
+                format!("/issues/{}/relations.json", issue_id),
+                Some(body),
+            ));
         }
 
         let path = format!("/issues/{}/relations.json", issue_id);
@@ -635,8 +634,11 @@ impl RedmineClient {
     /// Delete a relation by ID.
     pub async fn delete_relation(&self, id: u32) -> Result<()> {
         if self.dry_run {
-            println!("DRY RUN: DELETE /relations/{}.json", id);
-            return Err(AppError::validation("Dry run - no request sent"));
+            return Err(AppError::dry_run(
+                "DELETE",
+                format!("/relations/{}.json", id),
+                None,
+            ));
         }
 
         let path = format!("/relations/{}.json", id);
@@ -833,11 +835,8 @@ impl RedmineClient {
     /// Create a new time entry.
     pub async fn create_time_entry(&self, entry: NewTimeEntry) -> Result<TimeEntry> {
         if self.dry_run {
-            let body = serde_json::to_string_pretty(&NewTimeEntryRequest { time_entry: entry })
-                .map_err(|e| AppError::validation(format!("Failed to serialize: {}", e)))?;
-            println!("DRY RUN: POST /time_entries.json");
-            println!("{}", body);
-            return Err(AppError::validation("Dry run - no request sent"));
+            let body = serde_json::to_value(&NewTimeEntryRequest { time_entry: entry })?;
+            return Err(AppError::dry_run("POST", "/time_entries.json", Some(body)));
         }
 
         let request = self
@@ -851,11 +850,12 @@ impl RedmineClient {
     /// Update a time entry.
     pub async fn update_time_entry(&self, id: u32, update: UpdateTimeEntry) -> Result<TimeEntry> {
         if self.dry_run {
-            let body = serde_json::to_string_pretty(&UpdateTimeEntryRequest { time_entry: update })
-                .map_err(|e| AppError::validation(format!("Failed to serialize: {}", e)))?;
-            println!("DRY RUN: PUT /time_entries/{}.json", id);
-            println!("{}", body);
-            return Err(AppError::validation("Dry run - no request sent"));
+            let body = serde_json::to_value(&UpdateTimeEntryRequest { time_entry: update })?;
+            return Err(AppError::dry_run(
+                "PUT",
+                format!("/time_entries/{}.json", id),
+                Some(body),
+            ));
         }
 
         let path = format!("/time_entries/{}.json", id);
@@ -880,8 +880,11 @@ impl RedmineClient {
     /// Delete a time entry.
     pub async fn delete_time_entry(&self, id: u32) -> Result<()> {
         if self.dry_run {
-            println!("DRY RUN: DELETE /time_entries/{}.json", id);
-            return Err(AppError::validation("Dry run - no request sent"));
+            return Err(AppError::dry_run(
+                "DELETE",
+                format!("/time_entries/{}.json", id),
+                None,
+            ));
         }
 
         let path = format!("/time_entries/{}.json", id);
