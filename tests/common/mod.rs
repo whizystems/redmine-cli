@@ -86,6 +86,48 @@ pub fn mock_project_get() -> Mock {
         })))
 }
 
+/// Create a mock for getting a project that has custom fields.
+pub fn mock_project_get_with_custom_fields() -> Mock {
+    Mock::given(method("GET"))
+        .and(path_regex(r"/projects/[^/]+\.json"))
+        .and(header("X-Redmine-API-Key", "test-api-key"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "project": {
+                "id": 1,
+                "name": "Test Project",
+                "identifier": "test-project",
+                "status": 1,
+                "is_public": true,
+                "custom_fields": [
+                    {"id": 7, "name": "Billable", "value": "1"},
+                    {"id": 8, "name": "Estimate", "value": "120"}
+                ]
+            }
+        })))
+}
+
+/// Create a mock for the projects list endpoint filtered by a custom field.
+pub fn mock_projects_list_cf_filter() -> Mock {
+    Mock::given(method("GET"))
+        .and(path("/projects.json"))
+        .and(query_param("cf_7", "1"))
+        .and(header("X-Redmine-API-Key", "test-api-key"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "projects": [
+                {
+                    "id": 1,
+                    "name": "Billable Project",
+                    "identifier": "billable",
+                    "status": 1,
+                    "custom_fields": [{"id": 7, "name": "Billable", "value": "1"}]
+                }
+            ],
+            "total_count": 1,
+            "offset": 0,
+            "limit": 25
+        })))
+}
+
 /// Create a mock for the issues list endpoint.
 pub fn mock_issues_list() -> Mock {
     Mock::given(method("GET"))

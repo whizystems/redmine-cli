@@ -269,7 +269,12 @@ impl RedmineClient {
     // === Projects ===
 
     /// List projects.
-    pub async fn list_projects(&self, limit: u32, offset: u32) -> Result<ProjectList> {
+    pub async fn list_projects(
+        &self,
+        limit: u32,
+        offset: u32,
+        custom_fields: &[(u32, String)],
+    ) -> Result<ProjectList> {
         if self.dry_run {
             return Ok(ProjectList {
                 projects: vec![],
@@ -279,7 +284,10 @@ impl RedmineClient {
             });
         }
 
-        let path = format!("/projects.json?limit={}&offset={}", limit, offset);
+        let mut path = format!("/projects.json?limit={}&offset={}", limit, offset);
+        for (cf_id, cf_value) in custom_fields {
+            path.push_str(&format!("&cf_{}={}", cf_id, urlencoding::encode(cf_value)));
+        }
         let response = self.execute(self.request(Method::GET, &path)).await?;
         Self::parse_json(response).await
     }
