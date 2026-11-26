@@ -217,6 +217,11 @@ The CLI SHALL support:
 #### Scenario: Dry-run shows request without executing
 - **WHEN** `rdm time create --issue 123 --hours 1 --activity Dev --dry-run` is executed
 - **THEN** the request method, URL, and body are printed but no HTTP call is made
+- **AND** the command exits with code 0 (a completed dry run is not an error)
+
+#### Scenario: Dry-run in JSON format
+- **WHEN** a write command is executed with `--dry-run --format json`
+- **THEN** a success envelope is printed with `data.dry_run: true`, `data.method`, `data.path`, and `data.body` (omitted when the request has no body)
 
 ### Requirement: Cross-Platform Distribution
 The CLI SHALL be distributed as static binaries:

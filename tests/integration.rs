@@ -867,3 +867,141 @@ async fn test_issue_create_with_parent() {
     ]));
     assert_eq!(json["data"]["issue"]["parent"]["id"], 100);
 }
+
+// ============================================================================
+// Dry run (issue #22): a completed dry run exits 0 and sends nothing
+// ============================================================================
+
+#[tokio::test]
+async fn test_dry_run_issue_update_exits_zero_without_request() {
+    let server = start_mock_server().await;
+
+    let out = rdm(&server)
+        .args([
+            "--dry-run",
+            "issue",
+            "update",
+            "--id",
+            "5603",
+            "--notes",
+            "x",
+        ])
+        .output()
+        .expect("run rdm");
+
+    assert!(out.status.success(), "dry run should exit 0: {:?}", out);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stdout.contains("DRY RUN: PUT /issues/5603.json (no request sent)"),
+        "got:\n{stdout}"
+    );
+    assert!(stdout.contains("\"notes\": \"x\""), "got:\n{stdout}");
+    assert!(!stderr.contains("VALIDATION_ERROR"), "stderr:\n{stderr}");
+    assert!(server.received_requests().await.unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn test_dry_run_issue_create_json_envelope() {
+    let server = start_mock_server().await;
+
+    let json = json_stdout(rdm(&server).args([
+        "--format",
+        "json",
+        "--dry-run",
+        "issue",
+        "create",
+        "--project",
+        "1",
+        "--subject",
+        "Test",
+    ]));
+
+    assert_eq!(json["ok"], true);
+    assert_eq!(json["data"]["dry_run"], true);
+    assert_eq!(json["data"]["method"], "POST");
+    assert_eq!(json["data"]["path"], "/issues.json");
+    assert_eq!(json["data"]["body"]["issue"]["subject"], "Test");
+    assert!(server.received_requests().await.unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn test_dry_run_delete_has_no_body() {
+    let server = start_mock_server().await;
+
+    let json = json_stdout(rdm(&server).args([
+        "--format",
+        "json",
+        "--dry-run",
+        "time",
+        "delete",
+        "--id",
+        "456",
+    ]));
+
+    assert_eq!(json["data"]["method"], "DELETE");
+    assert_eq!(json["data"]["path"], "/time_entries/456.json");
+    assert!(json["data"].get("body").is_none());
+    assert!(server.received_requests().await.unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn test_dry_run_refusal_is_still_a_validation_error() {
+    let server = start_mock_server().await;
+
+    // Read commands that cannot be previewed keep failing with exit code 2.
+    rdm(&server)
+        .args(["--dry-run", "issue", "get", "--id", "1"])
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("VALIDATION_ERROR"));
+}
+
+fn contains_file(dir: &std::path::Path, name: &str) -> bool {
+    std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .any(|e| {
+            let p = e.path();
+            if p.is_dir() {
+                contains_file(&p, name)
+            } else {
+                p.file_name().is_some_and(|n| n == name)
+            }
+        })
+}
+
+#[tokio::test]
+async fn test_dry_run_does_not_cache_empty_activity_list() {
+    let server = start_mock_server().await;
+    let home = tempfile::tempdir().unwrap();
+
+    // No cached activities: the dry run can't resolve the name (no request is
+    // sent), but it must not write an empty cache that breaks later real runs.
+    let mut cmd = get_binary();
+    cmd.env("APPDATA", home.path())
+        .env("LOCALAPPDATA", home.path())
+        .env("HOME", home.path())
+        .env("XDG_CACHE_HOME", home.path().join("cache"))
+        .env("XDG_CONFIG_HOME", home.path().join("config"))
+        .args(["--url", &server.uri(), "--api-key", "test-api-key"])
+        .args([
+            "--dry-run",
+            "time",
+            "create",
+            "--issue",
+            "1",
+            "--hours",
+            "1",
+            "--activity",
+            "Dev",
+        ]);
+    cmd.assert().code(2);
+
+    assert!(
+        !contains_file(home.path(), "activities.json"),
+        "dry run must not cache an empty activity list"
+    );
+    assert!(server.received_requests().await.unwrap().is_empty());
+}

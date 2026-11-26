@@ -33,12 +33,16 @@ impl ActivityCache {
     }
 
     /// Check if the cache is still valid.
+    ///
+    /// An empty cache is never valid: Redmine always has activities, and older
+    /// versions wrote empty caches during `--dry-run`, which would otherwise
+    /// make real writes fail with "Unknown activity" until the TTL expired.
     pub fn is_valid(&self) -> bool {
         let now = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        now - self.updated_at < CACHE_TTL.as_secs()
+        !self.activities.is_empty() && now - self.updated_at < CACHE_TTL.as_secs()
     }
 
     /// Get cache age as human-readable string.
@@ -186,5 +190,11 @@ mod tests {
         let loaded = ActivityCache::load(&path).unwrap().unwrap();
         assert_eq!(loaded.activities.len(), 3);
         assert!(loaded.is_valid());
+    }
+
+    #[test]
+    fn test_empty_cache_is_not_valid() {
+        let cache = ActivityCache::new(vec![]);
+        assert!(!cache.is_valid());
     }
 }

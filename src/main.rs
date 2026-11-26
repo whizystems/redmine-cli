@@ -94,6 +94,11 @@ async fn run(cli: Cli) -> Result<ExitCode, AppError> {
             println!("{}", output);
             Ok(ExitCode::SUCCESS)
         }
+        // A completed dry run is a successful result, not an error.
+        Err(AppError::DryRun(preview)) => {
+            println!("{}", format.format_success(*preview, Meta::default()));
+            Ok(ExitCode::SUCCESS)
+        }
         Err(e) => {
             print_error(&e, format);
             Ok(e.exit_code().into())
